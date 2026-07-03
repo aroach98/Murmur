@@ -1,0 +1,11 @@
+# Build output (the publish/ folder IS committed so the exe ships with the repo)
+bin/
+obj/
+
+# Test artifacts — keep the scripts, not their outputs
+test/*.wav
+test/*.txt
+
+# Local scratch
+*.user
+*.pdb
