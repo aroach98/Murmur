@@ -17,6 +17,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly System.Windows.Forms.Timer _maxDurationTimer;
     private readonly Icon _idleIcon;
     private readonly Icon _activeIcon;
+    private MurmurServer? _server;
     private SettingsForm? _settingsForm;
 
     public TrayApplicationContext()
@@ -66,6 +67,26 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             ShowBalloon($"The '{_settings.ModelSize}' whisper model isn't downloaded yet. Open Settings to fetch it.", ToolTipIcon.Warning);
             ShowSettings();
+        }
+
+        StartServerIfEnabled();
+    }
+
+    /// <summary>Server mode (localhost STT for jarvis-core etc.) — shares _transcriber.</summary>
+    private void StartServerIfEnabled()
+    {
+        if (!_settings.ServerEnabled) return;
+        try
+        {
+            _server = new MurmurServer(_settings.ServerPort, _transcriber,
+                () => _settings.ModelSize, Log);
+            _server.Start();
+        }
+        catch (Exception ex)
+        {
+            _server = null;
+            Log($"[server] failed to start on port {_settings.ServerPort}: {ex.Message}");
+            ShowBalloon($"STT server couldn't start on port {_settings.ServerPort}: {ex.Message}", ToolTipIcon.Warning);
         }
     }
 
@@ -167,6 +188,15 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _hook.HotkeyVk = _settings.HotkeyVk;
             _tray.Text = $"Murmur — hold {_settings.HotkeyDisplayName} to dictate";
+
+            // Apply server-mode changes without a restart.
+            bool running = _server != null;
+            if (running && (!_settings.ServerEnabled || _server!.Port != _settings.ServerPort))
+            {
+                _server!.Dispose();
+                _server = null;
+            }
+            if (_server == null && _settings.ServerEnabled) StartServerIfEnabled();
         }
         _settingsForm = null;
     }
@@ -206,6 +236,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     protected override void ExitThreadCore()
     {
+        _server?.Dispose();
         _hook.Dispose();          // unhook first so no more events arrive
         _maxDurationTimer.Dispose();
         _recorder.Dispose();

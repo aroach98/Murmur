@@ -17,6 +17,16 @@ public sealed class Settings
     /// <summary>Safety cap on a single recording, in seconds.</summary>
     public int MaxRecordSeconds { get; set; } = 120;
 
+    /// <summary>
+    /// Serve the transcription pipeline over localhost HTTP (server mode) so other
+    /// local apps (e.g. jarvis-core) can use Murmur as their STT service. Loopback
+    /// only — nothing is ever exposed off-machine.
+    /// </summary>
+    public bool ServerEnabled { get; set; } = true;
+
+    /// <summary>Port for the localhost STT server.</summary>
+    public int ServerPort { get; set; } = 8722;
+
     [JsonIgnore]
     public string HotkeyDisplayName => KeyNames.NameOf(HotkeyVk);
 

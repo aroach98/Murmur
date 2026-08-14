@@ -57,6 +57,36 @@ internal static class Program
 
         try
         {
+            if (Has("--server"))
+            {
+                // Headless STT server (no tray). Shares the single-instance mutex:
+                // if the tray app is up, IT serves HTTP — don't double-bind the port.
+                using var mutex = new Mutex(true, @"Local\Murmur_SingleInstance", out bool isFirst);
+                if (!isFirst)
+                {
+                    Console.Error.WriteLine("Murmur is already running — the tray instance serves HTTP.");
+                    return 4;
+                }
+                var settings = Settings.Load();
+                int port = int.TryParse(Get("--port"), out int p) ? p : settings.ServerPort;
+                using var transcriber = new Transcriber();
+                using var server = new MurmurServer(port, transcriber,
+                    () => Settings.Load().ModelSize,
+                    msg =>
+                    {
+                        try
+                        {
+                            File.AppendAllText(Path.Combine(Settings.SettingsDir, "Murmur.log"),
+                                $"{DateTime.Now:HH:mm:ss} {msg}{Environment.NewLine}");
+                        }
+                        catch { /* logging must never break the server */ }
+                    });
+                server.Start();
+                Console.WriteLine($"Murmur STT server on http://127.0.0.1:{port}/");
+                Thread.Sleep(Timeout.Infinite);
+                return 0;
+            }
+
             if (Has("--transcribe"))
             {
                 string wavPath = Get("--transcribe") ?? throw new ArgumentException("--transcribe needs a wav path");
@@ -64,7 +94,7 @@ internal static class Program
                 string modelPath = ModelManager.PathFor(size);
                 if (!File.Exists(modelPath)) throw new FileNotFoundException($"Model not downloaded: {modelPath}");
 
-                float[] samples = LoadWavAs16kMono(wavPath);
+                float[] samples = WavAudio.LoadWavAs16kMono(wavPath);
                 using var transcriber = new Transcriber();
                 string raw = transcriber.TranscribeAsync(samples, modelPath).GetAwaiter().GetResult();
                 string text = Has("--raw") ? raw : Transcriber.StripNoise(raw);
@@ -173,21 +203,4 @@ internal static class Program
         }
     }
 
-    /// <summary>Load any WAV, downmixing/resampling to whisper's expected 16 kHz mono float.</summary>
-    private static float[] LoadWavAs16kMono(string path)
-    {
-        using var reader = new AudioFileReader(path);
-        ISampleProvider provider = reader;
-        if (provider.WaveFormat.Channels == 2)
-            provider = new StereoToMonoSampleProvider(provider);
-        if (provider.WaveFormat.SampleRate != 16000)
-            provider = new WdlResamplingSampleProvider(provider, 16000);
-
-        var all = new List<float>(1 << 20);
-        var buffer = new float[16000];
-        int read;
-        while ((read = provider.Read(buffer, 0, buffer.Length)) > 0)
-            all.AddRange(buffer.Take(read));
-        return all.ToArray();
-    }
 }

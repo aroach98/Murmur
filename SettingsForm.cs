@@ -10,6 +10,7 @@ public sealed class SettingsForm : Form
     private readonly ProgressBar _progress;
     private readonly RadioButton _typeRadio;
     private readonly RadioButton _pasteRadio;
+    private readonly CheckBox _serverCheck;
     private int _pendingVk;
     private CancellationTokenSource? _downloadCts;
 
@@ -24,7 +25,7 @@ public sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(420, 320);
+        ClientSize = new Size(420, 352);
         Font = new Font("Segoe UI", 9.5f);
 
         var hotkeyLabel = new Label { Text = "Hold-to-record hotkey (click box, press a key):", Location = new Point(16, 18), AutoSize = true };
@@ -71,8 +72,16 @@ public sealed class SettingsForm : Form
             Checked = settings.UseClipboardPaste,
         };
 
-        var ok = new Button { Text = "Save", DialogResult = DialogResult.OK, Location = new Point(232, 276), Width = 76 };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(316, 276), Width = 76 };
+        _serverCheck = new CheckBox
+        {
+            Text = $"Local STT server for other apps (localhost port {settings.ServerPort})",
+            Location = new Point(16, 268),
+            AutoSize = true,
+            Checked = settings.ServerEnabled,
+        };
+
+        var ok = new Button { Text = "Save", DialogResult = DialogResult.OK, Location = new Point(232, 308), Width = 76 };
+        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(316, 308), Width = 76 };
         ok.Click += (_, _) => ApplySettings();
         AcceptButton = ok;
         CancelButton = cancel;
@@ -80,7 +89,7 @@ public sealed class SettingsForm : Form
         Controls.AddRange(new Control[]
         {
             hotkeyLabel, _hotkeyBox, modelLabel, _modelCombo, _modelStatus,
-            _downloadButton, _progress, injectLabel, _typeRadio, _pasteRadio, ok, cancel,
+            _downloadButton, _progress, injectLabel, _typeRadio, _pasteRadio, _serverCheck, ok, cancel,
         });
 
         UpdateModelStatus();
@@ -145,6 +154,7 @@ public sealed class SettingsForm : Form
         _settings.HotkeyVk = _pendingVk;
         _settings.ModelSize = SelectedSize;
         _settings.UseClipboardPaste = _pasteRadio.Checked;
+        _settings.ServerEnabled = _serverCheck.Checked;
         _settings.Save();
     }
 
